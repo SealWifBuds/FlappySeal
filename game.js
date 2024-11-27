@@ -39,14 +39,6 @@ class SoundManager {
         this.createSound(880, 0.1, 0.2); // High-pitched jump sound
     }
 
-    playCollisionSound() {
-        this.createSound(220, 0.3, 0.4, 'triangle'); // Lower collision sound
-    }
-
-    playScoreSound() {
-        this.createSound(440, 0.2, 0.3); // Mid-range score sound
-    }
-
     playGameOverSound() {
         const frequencies = [330, 220, 165];
         frequencies.forEach((freq, index) => {
@@ -120,22 +112,6 @@ class FlappySealGame {
 
          // Sound management
          this.soundManager = new SoundManager();
-
-         // Add event listeners for sound interactions
-         this.canvas.addEventListener('click', () => this.handleCanvasInteraction());
-         document.addEventListener('keydown', (event) => {
-             if (event.code === 'Space') {
-                 this.handleCanvasInteraction();
-             }
-         });
-    }
-
-    handleCanvasInteraction() {
-        if (this.isPaused) {
-            this.soundManager.playJumpSound(); // Initial start sound
-        } else if (this.gameActive) {
-            this.soundManager.playJumpSound(); // Jump sound
-        }
     }
 
     initializeBackground() {
@@ -235,6 +211,7 @@ class FlappySealGame {
             this.seal.velocity = this.jumpForce;
             this.createRipple();
         }
+        this.soundManager.playJumpSound();
     }
 
     createBubble() {
@@ -397,14 +374,6 @@ class FlappySealGame {
             // Remove if off screen (left or bottom)
             return comet.x + comet.tailLength > 0 && comet.y < this.canvas.height + 50;
         });
-    }
-
-    checkCollision() {
-        const collision = super.checkCollision(); // Assuming this is the parent method
-        if (collision) {
-            this.soundManager.playCollisionSound();
-        }
-        return collision;
     }
 
     checkCollision() {
