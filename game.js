@@ -7,7 +7,6 @@ class FlappySealGame {
         this.gameOverScreen = document.getElementById('gameOver');
         this.startScreen = document.getElementById('startScreen');
         this.finalScoreElement = document.getElementById('finalScore');
-        this.pauseOverlay = document.getElementById('pauseOverlay');
 
         // Game settings
         this.gravity = 0.2;   // Increased by 15% from 0.48
@@ -53,8 +52,6 @@ class FlappySealGame {
         // Initialize game state
         this.reset();
         this.initializeBackground();
-
-        // Game settings
     }
 
     initializeBackground() {
@@ -119,7 +116,6 @@ class FlappySealGame {
         this.rockets = [];
         this.score = 0;
         this.gameActive = false;
-        this.isPaused = true;
         this.bubbles = [];
         this.ripples = [];
         this.scorePopups = [];
@@ -131,26 +127,18 @@ class FlappySealGame {
         // Update score display
         this.scoreElement.textContent = `Score: ${this.score}`;
         
-        // Hide game over screen and pause overlay
+        // Hide game over screen
         this.gameOverScreen.style.display = 'none';
-        this.pauseOverlay.style.display = 'none';
     }
 
     start() {
         this.gameActive = true;
-        this.isPaused = true;
         this.startScreen.style.display = 'none';
-        this.pauseOverlay.style.display = 'block';
         this.gameLoop();
     }
 
     jump() {
-        if (this.isPaused) {
-            this.isPaused = false;
-            this.pauseOverlay.style.display = 'none';
-            this.seal.velocity = this.jumpForce;
-            this.createRipple();
-        } else if (this.gameActive) {
+        if (this.gameActive) {
             this.seal.velocity = this.jumpForce;
             this.createRipple();
         }
@@ -220,8 +208,8 @@ class FlappySealGame {
     update() {
         this.updateBackground();
 
-        if (!this.gameActive || this.isPaused) {
-            // Gentle floating animation while paused
+        if (!this.gameActive) {
+            // Gentle floating animation while not playing
             this.seal.y = this.canvas.height / 2 + Math.sin(Date.now() / 500) * 20;
             this.seal.rotation = Math.sin(Date.now() / 1000) * 5;
             return;
@@ -513,143 +501,20 @@ class FlappySealGame {
         this.finalScoreElement.textContent = this.score;
         this.gameOverScreen.style.display = 'block';
         
-        this.shareScore();
-    }
-
-    shareScore() {
-        console.log('Attempting to share score:', this.score);
-        
-        // Ensure score is a valid number
-        const scoreToShare = parseInt(this.score, 10);
-        
-        // Multiple score sharing mechanisms
-        const scoreSharingMethods = [
-            // Method 1: Telegram WebApp sendData
-            () => {
-                if (window.Telegram && window.Telegram.WebApp) {
-                    try {
-                        console.log('Sharing score via Telegram WebApp sendData');
-                        window.Telegram.WebApp.sendData(JSON.stringify({
-                            type: 'game_score',
-                            score: scoreToShare,
-                            username: window.Telegram.WebApp.initDataUnsafe?.user?.username || 'Anonymous'
-                        }));
-                        return true;
-                    } catch (error) {
-                        console.error('Telegram WebApp sendData error:', error);
-                        return false;
-                    }
-                }
-                return false;
-            },
-            
-            // Method 2: TelegramGameProxy
-            () => {
-                if (window.TelegramGameProxy) {
-                    try {
-                        console.log('Sharing score via TelegramGameProxy');
-                        TelegramGameProxy.shareScore(scoreToShare);
-                        return true;
-                    } catch (error) {
-                        console.error('TelegramGameProxy share error:', error);
-                        return false;
-                    }
-                }
-                return false;
-            },
-            
-            // Method 3: Fallback HTTP/API method (if implemented)
-            () => {
-                try {
-                    fetch('/submit-score', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            score: scoreToShare,
-                            username: window.Telegram?.WebApp?.initDataUnsafe?.user?.username || 'Anonymous'
-                        })
-                    });
-                    return true;
-                } catch (error) {
-                    console.error('Fallback score submission error:', error);
-                    return false;
-                }
-            }
-        ];
-        
-        // Try each score sharing method
-        for (const method of scoreSharingMethods) {
-            if (method()) {
-                console.log('Score shared successfully');
-                return;
-            }
+        // Send score to Telegram if we're in Telegram WebApp
+        if (window.TelegramGameProxy) {
+            TelegramGameProxy.shareScore(this.score);
         }
-        
-        console.error('Failed to share score through any method');
     }
 }
-
-// Telegram WebApp Integration
-function initTelegramWebApp() {
-    if (window.Telegram && window.Telegram.WebApp) {
-        const WebApp = window.Telegram.WebApp;
-        
-        // Configure WebApp
-        WebApp.expand();
-        WebApp.enableClosingConfirmation();
-        
-        // Set up main button
-        WebApp.MainButton.text = 'Start Game';
-        WebApp.MainButton.color = '#2ecc71';
-        WebApp.MainButton.textColor = '#ffffff';
-        
-        // Event listener for main button
-        WebApp.MainButton.onClick(() => {
-            console.log('Telegram WebApp Main Button Clicked');
-            startGame();
-            WebApp.MainButton.hide();
-        });
-        
-        // Show main button
-        WebApp.MainButton.show();
-        
-        // Handle app closing
-        WebApp.onEvent('mainButtonClicked', () => {
-            console.log('Main Button Clicked in Telegram WebApp');
-        });
-    }
-}
-
-// Modified startGame function
-function startGame() {
-    // Hide start screen
-    const startScreen = document.getElementById('startScreen');
-    if (startScreen) {
-        startScreen.style.display = 'none';
-    }
-    
-    // Create game instance
-    game = new FlappySealGame();
-    
-    // Start game loop
-    game.start();
-    
-    // If in Telegram WebApp, close main button
-    if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.MainButton.hide();
-    }
-}
-
-// Initialize game when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM Loaded, Initializing Telegram WebApp');
-    initTelegramWebApp();
-});
 
 // Game instance
 let game;
+
+function startGame() {
+    game = new FlappySealGame();
+    game.start();
+}
 
 function restartGame() {
     game.reset();
