@@ -536,7 +536,7 @@ class FlappySealGame {
         
         // Score sharing methods
         const scoreSharingMethods = [
-            // Method 1: Telegram WebApp sendData
+            // Method 1: Telegram WebApp sendData (Primary Method)
             () => {
                 if (window.Telegram && window.Telegram.WebApp) {
                     try {
@@ -570,7 +570,30 @@ class FlappySealGame {
                 return false;
             },
             
-            // Method 3: Fallback HTTP/API method
+            // Method 3: Direct Telegram Bot API Call
+            () => {
+                try {
+                    // Attempt to call Telegram bot's score submission endpoint
+                    fetch('/telegram/submit-score', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            score: scoreToShare,
+                            username: username,
+                            gameId: window.Telegram?.WebApp?.initDataUnsafe?.chat_instance
+                        })
+                    });
+                    console.log('🌐 Shared score via Telegram Bot endpoint');
+                    return true;
+                } catch (error) {
+                    console.error('Telegram Bot score submission error:', error);
+                    return false;
+                }
+            },
+            
+            // Method 4: Fallback HTTP/API method
             () => {
                 try {
                     fetch('/submit-score', {
@@ -591,7 +614,7 @@ class FlappySealGame {
                 }
             },
             
-            // Method 4: Local Storage Backup
+            // Method 5: Local Storage Backup
             () => {
                 try {
                     // Store top scores locally
