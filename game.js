@@ -212,6 +212,7 @@ class FlappySealGame {
             this.pauseOverlay.style.display = 'none';
             this.seal.velocity = this.jumpForce;
             this.createRipple();
+            this.soundManager.playJumpSound();
         } else if (this.gameActive) {
             this.seal.velocity = this.jumpForce;
             this.createRipple();
