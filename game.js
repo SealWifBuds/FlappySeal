@@ -529,26 +529,25 @@ class FlappySealGame {
         // Ensure score is a valid number
         const scoreToShare = parseInt(this.score, 10);
         
-        // Get username from Telegram or fallback
-        const username = window.Telegram?.WebApp?.initDataUnsafe?.user?.username || 
-                         localStorage.getItem('playerName') || 
-                         'Anonymous';
-        
+        // Get user information
+        const telegramUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        const username = telegramUser?.username || telegramUser?.first_name || 'Anonymous';
+        const userId = telegramUser?.id;
+
         // Score sharing methods
         const scoreSharingMethods = [
-            // Method 1: Telegram WebApp sendData (Primary Method)
+            // Method 1: Telegram's Official Game Score API
             () => {
                 if (window.Telegram && window.Telegram.WebApp) {
                     try {
-                        console.log('📱 Sharing score via Telegram WebApp sendData');
-                        window.Telegram.WebApp.sendData(JSON.stringify({
-                            type: 'game_score',
-                            score: scoreToShare,
-                            username: username
-                        }));
+                        console.log('📱 Attempting Telegram WebApp Score Submission');
+                        
+                        // Close WebApp, which triggers score submission
+                        window.Telegram.WebApp.close();
+                        
                         return true;
                     } catch (error) {
-                        console.error('Telegram WebApp sendData error:', error);
+                        console.error('Telegram WebApp score submission error:', error);
                         return false;
                     }
                 }
@@ -570,51 +569,51 @@ class FlappySealGame {
                 return false;
             },
             
-            // Method 3: Direct Telegram Bot API Call
+            // Method 3: Server-Side Score Submission
             () => {
                 try {
-                    // Attempt to call Telegram bot's score submission endpoint
-                    fetch('/telegram/submit-score', {
+                    console.log('🌐 Attempting Server-Side Score Submission');
+                    
+                    // Detect current environment
+                    const isWebApp = window.Telegram?.WebApp?.isExpanded;
+                    
+                    // Prepare score submission data
+                    const scoreData = {
+                        score: scoreToShare,
+                        username: username,
+                        userId: userId,
+                        platform: isWebApp ? 'telegram_webapp' : 'web',
+                        timestamp: new Date().toISOString()
+                    };
+
+                    // Submit score to server
+                    fetch('/api/submit-score', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            // Add Telegram WebApp init data for verification
+                            ...(telegramUser && { 
+                                'X-Telegram-Init-Data': window.Telegram.WebApp.initData 
+                            })
                         },
-                        body: JSON.stringify({
-                            score: scoreToShare,
-                            username: username,
-                            gameId: window.Telegram?.WebApp?.initDataUnsafe?.chat_instance
-                        })
+                        body: JSON.stringify(scoreData)
+                    }).then(response => {
+                        if (!response.ok) {
+                            console.error('Server score submission failed');
+                        }
+                        return response.json();
+                    }).catch(error => {
+                        console.error('Score submission network error:', error);
                     });
-                    console.log('🌐 Shared score via Telegram Bot endpoint');
+
                     return true;
                 } catch (error) {
-                    console.error('Telegram Bot score submission error:', error);
+                    console.error('Server-side score submission error:', error);
                     return false;
                 }
             },
             
-            // Method 4: Fallback HTTP/API method
-            () => {
-                try {
-                    fetch('/submit-score', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            score: scoreToShare,
-                            username: username
-                        })
-                    });
-                    console.log('🌐 Shared score via HTTP endpoint');
-                    return true;
-                } catch (error) {
-                    console.error('Fallback score submission error:', error);
-                    return false;
-                }
-            },
-            
-            // Method 5: Local Storage Backup
+            // Method 4: Local Storage Backup
             () => {
                 try {
                     // Store top scores locally
