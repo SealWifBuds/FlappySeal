@@ -1,3 +1,65 @@
+class SoundManager {
+    constructor() {
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.isMuted = false;
+        this.sounds = {};
+    }
+
+    // Generalized sound creation method
+    createSound(type, frequency, duration, volume = 0.3, waveType = 'sine') {
+        if (this.isMuted) return null;
+
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+
+        oscillator.type = waveType;
+        oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+
+        // Create sound envelope
+        gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.01);
+        gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + duration);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        oscillator.start();
+        oscillator.stop(this.audioContext.currentTime + duration);
+
+        return { oscillator, gainNode };
+    }
+
+    // Preset sounds
+    playJumpSound() {
+        this.createSound('jump', 880, 0.1, 0.2); // High-pitched short sound
+    }
+
+    playCollisionSound() {
+        // Lower pitched, slightly longer sound for collision
+        this.createSound('collision', 220, 0.3, 0.4, 'triangle');
+    }
+
+    playScoreSound() {
+        // Mid-range sound for scoring
+        this.createSound('score', 440, 0.2, 0.3);
+    }
+
+    playGameOverSound() {
+        // Descending tones for game over
+        const frequencies = [330, 220, 165];
+        frequencies.forEach((freq, index) => {
+            setTimeout(() => {
+                this.createSound(`gameOver-${index}`, freq, 0.3, 0.4, 'triangle');
+            }, index * 100);
+        });
+    }
+
+    toggleMute() {
+        this.isMuted = !this.isMuted;
+        return this.isMuted;
+    }
+}
+
 class FlappySealGame {
     constructor() {
         // Get DOM elements
@@ -54,7 +116,24 @@ class FlappySealGame {
         this.reset();
         this.initializeBackground();
 
-        // Game settings
+         // Sound management
+         this.soundManager = new SoundManager();
+
+         // Add event listeners for sound interactions
+         this.canvas.addEventListener('click', () => this.handleCanvasInteraction());
+         document.addEventListener('keydown', (event) => {
+             if (event.code === 'Space') {
+                 this.handleCanvasInteraction();
+             }
+         });
+    }
+
+    handleCanvasInteraction() {
+        if (this.isPaused) {
+            this.soundManager.playJumpSound(); // Initial start sound
+        } else if (this.gameActive) {
+            this.soundManager.playJumpSound(); // Jump sound
+        }
     }
 
     initializeBackground() {
@@ -319,6 +398,14 @@ class FlappySealGame {
     }
 
     checkCollision() {
+        const collision = super.checkCollision(); // Assuming this is the parent method
+        if (collision) {
+            this.soundManager.playCollisionSound();
+        }
+        return collision;
+    }
+
+    checkCollision() {
         const sealBox = {
             x: this.seal.x + this.sealSize * (1 - this.sealHitboxScale.width) / 2,
             y: this.seal.y + this.sealSize * (1 - this.sealHitboxScale.height) / 2,
@@ -503,6 +590,8 @@ class FlappySealGame {
     }
 
     gameOver() {
+        this.soundManager.playGameOverSound();
+
         this.gameActive = false;
         this.finalScoreElement.textContent = this.score;
         this.gameOverScreen.style.display = 'block';
@@ -511,6 +600,14 @@ class FlappySealGame {
 
 // Game instance
 let game;
+
+function toggleMute() {
+    const muteButton = document.getElementById('muteButton');
+    const isMuted = game.soundManager.toggleMute();
+    
+    // Update button icon
+    muteButton.textContent = isMuted ? '🔇' : '🔊';
+}
 
 function startGame() {
     game = new FlappySealGame();
