@@ -494,27 +494,6 @@ class FlappySealGame {
         this.gameActive = false;
         this.finalScoreElement.textContent = this.score;
         this.gameOverScreen.style.display = 'block';
-        
-        // Telegram Score Submission
-    }
-
-    submitScore() {
-        try {
-            if (window.Telegram && window.Telegram.WebApp) {
-                // Send score to Telegram
-                window.Telegram.WebApp.sendData(JSON.stringify({
-                    type: 'game_score',
-                    score: this.score
-                }));
-    
-                // Optional: Open global highscore link
-                window.Telegram.WebApp.openTelegramLink(
-                    `https://t.me/games?game=${GAME_SHORT_NAME}`
-                );
-            }
-        } catch (error) {
-            console.error('Telegram Score Submission Error:', error);
-        }
     }
 }
 
