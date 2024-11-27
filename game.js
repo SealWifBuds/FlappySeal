@@ -495,9 +495,33 @@ class FlappySealGame {
         this.finalScoreElement.textContent = this.score;
         this.gameOverScreen.style.display = 'block';
         
-        // Send score to Telegram if we're in Telegram WebApp
-        if (window.TelegramGameProxy) {
-            TelegramGameProxy.shareScore(this.score);
+        // Extract user parameters from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const tgId = urlParams.get('tgId');
+        
+        // Attempt to send score to Telegram
+        try {
+            // Check if Telegram WebApp is available
+            if (window.Telegram && window.Telegram.WebApp) {
+                // Use Telegram WebApp's built-in method to send score
+                window.Telegram.WebApp.sendData(JSON.stringify({
+                    type: 'game_score',
+                    score: this.score,
+                    tgId: tgId
+                }));
+                
+                console.log('Score sent to Telegram WebApp:', this.score);
+            } 
+            // Fallback to traditional method if WebApp not available
+            else if (window.TelegramGameProxy) {
+                TelegramGameProxy.shareScore(this.score);
+                console.log('Score sent via TelegramGameProxy:', this.score);
+            }
+            else {
+                console.warn('No Telegram score sharing method available');
+            }
+        } catch (error) {
+            console.error('Error sending score to Telegram:', error);
         }
     }
 }
