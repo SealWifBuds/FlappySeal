@@ -1,55 +1,57 @@
 class SoundManager {
     constructor() {
-        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.audioContext = null;
         this.isMuted = false;
-        this.sounds = {};
+        
+        // Safely initialize AudioContext
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (error) {
+            console.warn('Web Audio API not supported:', error);
+        }
     }
 
-    // Generalized sound creation method
-    createSound(type, frequency, duration, volume = 0.3, waveType = 'sine') {
-        if (this.isMuted) return null;
+    createSound(frequency, duration = 0.1, volume = 0.3, type = 'sine') {
+        if (this.isMuted || !this.audioContext) return;
 
-        const oscillator = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
+        try {
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
 
-        oscillator.type = waveType;
-        oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+            oscillator.type = type;
+            oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
 
-        // Create sound envelope
-        gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.01);
-        gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + duration);
+            gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.01);
+            gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + duration);
 
-        oscillator.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
 
-        oscillator.start();
-        oscillator.stop(this.audioContext.currentTime + duration);
-
-        return { oscillator, gainNode };
+            oscillator.start();
+            oscillator.stop(this.audioContext.currentTime + duration);
+        } catch (error) {
+            console.warn('Sound creation error:', error);
+        }
     }
 
-    // Preset sounds
     playJumpSound() {
-        this.createSound('jump', 880, 0.1, 0.2); // High-pitched short sound
+        this.createSound(880, 0.1, 0.2); // High-pitched jump sound
     }
 
     playCollisionSound() {
-        // Lower pitched, slightly longer sound for collision
-        this.createSound('collision', 220, 0.3, 0.4, 'triangle');
+        this.createSound(220, 0.3, 0.4, 'triangle'); // Lower collision sound
     }
 
     playScoreSound() {
-        // Mid-range sound for scoring
-        this.createSound('score', 440, 0.2, 0.3);
+        this.createSound(440, 0.2, 0.3); // Mid-range score sound
     }
 
     playGameOverSound() {
-        // Descending tones for game over
         const frequencies = [330, 220, 165];
         frequencies.forEach((freq, index) => {
             setTimeout(() => {
-                this.createSound(`gameOver-${index}`, freq, 0.3, 0.4, 'triangle');
+                this.createSound(freq, 0.3, 0.4, 'triangle');
             }, index * 100);
         });
     }
