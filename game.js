@@ -7,6 +7,7 @@ class FlappySealGame {
         this.gameOverScreen = document.getElementById('gameOver');
         this.startScreen = document.getElementById('startScreen');
         this.finalScoreElement = document.getElementById('finalScore');
+        this.pauseOverlay = document.getElementById('pauseOverlay');
 
         // Game settings
         this.gravity = 0.2;   // Increased by 15% from 0.48
@@ -52,6 +53,8 @@ class FlappySealGame {
         // Initialize game state
         this.reset();
         this.initializeBackground();
+
+        // Game settings
     }
 
     initializeBackground() {
@@ -116,6 +119,7 @@ class FlappySealGame {
         this.rockets = [];
         this.score = 0;
         this.gameActive = false;
+        this.isPaused = true;
         this.bubbles = [];
         this.ripples = [];
         this.scorePopups = [];
@@ -127,18 +131,26 @@ class FlappySealGame {
         // Update score display
         this.scoreElement.textContent = `Score: ${this.score}`;
         
-        // Hide game over screen
+        // Hide game over screen and pause overlay
         this.gameOverScreen.style.display = 'none';
+        this.pauseOverlay.style.display = 'none';
     }
 
     start() {
         this.gameActive = true;
+        this.isPaused = true;
         this.startScreen.style.display = 'none';
+        this.pauseOverlay.style.display = 'block';
         this.gameLoop();
     }
 
     jump() {
-        if (this.gameActive) {
+        if (this.isPaused) {
+            this.isPaused = false;
+            this.pauseOverlay.style.display = 'none';
+            this.seal.velocity = this.jumpForce;
+            this.createRipple();
+        } else if (this.gameActive) {
             this.seal.velocity = this.jumpForce;
             this.createRipple();
         }
@@ -208,8 +220,8 @@ class FlappySealGame {
     update() {
         this.updateBackground();
 
-        if (!this.gameActive) {
-            // Gentle floating animation while not playing
+        if (!this.gameActive || this.isPaused) {
+            // Gentle floating animation while paused
             this.seal.y = this.canvas.height / 2 + Math.sin(Date.now() / 500) * 20;
             this.seal.rotation = Math.sin(Date.now() / 1000) * 5;
             return;
@@ -501,9 +513,36 @@ class FlappySealGame {
         this.finalScoreElement.textContent = this.score;
         this.gameOverScreen.style.display = 'block';
         
-        // Send score to Telegram if we're in Telegram WebApp
+        this.shareScore();
+    }
+
+    shareScore() {
+        console.log('Attempting to share score:', this.score);
+        
         if (window.TelegramGameProxy) {
-            TelegramGameProxy.shareScore(this.score);
+            try {
+                console.log('Sharing score via TelegramGameProxy');
+                TelegramGameProxy.shareScore(this.score);
+            } catch (error) {
+                console.error('Error sharing score via TelegramGameProxy:', error);
+            }
+        } else {
+            console.warn('TelegramGameProxy not available');
+            
+            // Fallback mechanism
+            if (window.Telegram && window.Telegram.WebApp) {
+                try {
+                    console.log('Sharing score via Telegram WebApp');
+                    window.Telegram.WebApp.sendData(JSON.stringify({
+                        type: 'game_score',
+                        score: this.score
+                    }));
+                } catch (error) {
+                    console.error('Error sharing score via Telegram WebApp:', error);
+                }
+            } else {
+                console.error('No Telegram score sharing mechanism available');
+            }
         }
     }
 }
