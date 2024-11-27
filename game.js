@@ -498,7 +498,6 @@ class FlappySealGame {
         // Extract user parameters from URL
         const urlParams = new URLSearchParams(window.location.search);
         const tgId = urlParams.get('tgId');
-        
         // Attempt to send score to Telegram
         try {
             // Check if Telegram WebApp is available
@@ -511,6 +510,7 @@ class FlappySealGame {
                 }));
                 
                 console.log('Score sent to Telegram WebApp:', this.score);
+                window.Telegram.WebApp.openTelegramLink('https://t.me/games?game=' + GAME_SHORT_NAME);
             } 
             // Fallback to traditional method if WebApp not available
             else if (window.TelegramGameProxy) {
