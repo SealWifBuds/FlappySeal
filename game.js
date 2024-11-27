@@ -496,6 +496,9 @@ class FlappySealGame {
         this.gameOverScreen.style.display = 'block';
         
         // Telegram Score Submission
+    }
+
+    submitScore() {
         try {
             if (window.Telegram && window.Telegram.WebApp) {
                 // Send score to Telegram
