@@ -524,7 +524,26 @@ class FlappySealGame {
         
         // Multiple score sharing mechanisms
         const scoreSharingMethods = [
-            // Method 1: TelegramGameProxy
+            // Method 1: Telegram WebApp sendData
+            () => {
+                if (window.Telegram && window.Telegram.WebApp) {
+                    try {
+                        console.log('Sharing score via Telegram WebApp sendData');
+                        window.Telegram.WebApp.sendData(JSON.stringify({
+                            type: 'game_score',
+                            score: scoreToShare,
+                            username: window.Telegram.WebApp.initDataUnsafe?.user?.username || 'Anonymous'
+                        }));
+                        return true;
+                    } catch (error) {
+                        console.error('Telegram WebApp sendData error:', error);
+                        return false;
+                    }
+                }
+                return false;
+            },
+            
+            // Method 2: TelegramGameProxy
             () => {
                 if (window.TelegramGameProxy) {
                     try {
@@ -533,24 +552,6 @@ class FlappySealGame {
                         return true;
                     } catch (error) {
                         console.error('TelegramGameProxy share error:', error);
-                        return false;
-                    }
-                }
-                return false;
-            },
-            
-            // Method 2: Telegram WebApp
-            () => {
-                if (window.Telegram && window.Telegram.WebApp) {
-                    try {
-                        console.log('Sharing score via Telegram WebApp');
-                        window.Telegram.WebApp.sendData(JSON.stringify({
-                            type: 'game_score',
-                            score: scoreToShare
-                        }));
-                        return true;
-                    } catch (error) {
-                        console.error('Telegram WebApp share error:', error);
                         return false;
                     }
                 }
