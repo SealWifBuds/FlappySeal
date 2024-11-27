@@ -123,9 +123,6 @@ class FlappySealGame {
 
         // Add initial rocket
         this.addRocket();
-
-        // Update score display
-        this.scoreElement.textContent = `Score: ${this.score}`;
         
         // Hide game over screen
         this.gameOverScreen.style.display = 'none';
@@ -465,12 +462,6 @@ class FlappySealGame {
             );
         }
 
-        // Draw score
-        this.ctx.fillStyle = 'white';
-        this.ctx.font = 'bold 24px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText(`Score: ${this.score}`, this.canvas.width/2, 40);
-
         // Draw score popups
         this.scorePopups.forEach(popup => {
             this.ctx.save();
@@ -498,13 +489,143 @@ class FlappySealGame {
 
     gameOver() {
         this.gameActive = false;
-        this.finalScoreElement.textContent = this.score;
+        
+        // Show game over screen
         this.gameOverScreen.style.display = 'block';
         
-        // Send score to Telegram if we're in Telegram WebApp
-        if (window.TelegramGameProxy) {
-            TelegramGameProxy.shareScore(this.score);
+        // Update final score display
+        if (this.finalScoreElement) {
+            this.finalScoreElement.textContent = this.score;
         }
+        
+        // Send score to Telegram and other platforms
+        this.shareScore();
+    }
+
+    restartGame() {
+        // Hide game over screen
+        if (this.gameOverScreen) {
+            this.gameOverScreen.style.display = 'none';
+        }
+        
+        // Reset game state
+        this.reset();
+        
+        // Reinitialize seal
+        this.seal = {
+            x: 50,
+            y: this.canvas.height / 2,
+            velocity: 0,
+            rotation: 0
+        };
+        
+        // Start the game
+        this.start();
+    }
+
+    shareScore() {
+        console.log('🏆 Attempting to share score:', this.score);
+        
+        // Ensure score is a valid number
+        const scoreToShare = parseInt(this.score, 10);
+        
+        // Get username from Telegram or fallback
+        const username = window.Telegram?.WebApp?.initDataUnsafe?.user?.username || 
+                         localStorage.getItem('playerName') || 
+                         'Anonymous';
+        
+        // Score sharing methods
+        const scoreSharingMethods = [
+            // Method 1: Telegram WebApp sendData
+            () => {
+                if (window.Telegram && window.Telegram.WebApp) {
+                    try {
+                        console.log('📱 Sharing score via Telegram WebApp sendData');
+                        window.Telegram.WebApp.sendData(JSON.stringify({
+                            type: 'game_score',
+                            score: scoreToShare,
+                            username: username
+                        }));
+                        return true;
+                    } catch (error) {
+                        console.error('Telegram WebApp sendData error:', error);
+                        return false;
+                    }
+                }
+                return false;
+            },
+            
+            // Method 2: TelegramGameProxy
+            () => {
+                if (window.TelegramGameProxy) {
+                    try {
+                        console.log('🎮 Sharing score via TelegramGameProxy');
+                        TelegramGameProxy.shareScore(scoreToShare);
+                        return true;
+                    } catch (error) {
+                        console.error('TelegramGameProxy share error:', error);
+                        return false;
+                    }
+                }
+                return false;
+            },
+            
+            // Method 3: Fallback HTTP/API method
+            () => {
+                try {
+                    fetch('/submit-score', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            score: scoreToShare,
+                            username: username
+                        })
+                    });
+                    console.log('🌐 Shared score via HTTP endpoint');
+                    return true;
+                } catch (error) {
+                    console.error('Fallback score submission error:', error);
+                    return false;
+                }
+            },
+            
+            // Method 4: Local Storage Backup
+            () => {
+                try {
+                    // Store top scores locally
+                    const topScores = JSON.parse(localStorage.getItem('topScores') || '[]');
+                    topScores.push({
+                        score: scoreToShare,
+                        username: username,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    // Sort and keep top 5 scores
+                    const sortedScores = topScores
+                        .sort((a, b) => b.score - a.score)
+                        .slice(0, 5);
+                    
+                    localStorage.setItem('topScores', JSON.stringify(sortedScores));
+                    console.log('💾 Saved score to local storage');
+                    return true;
+                } catch (error) {
+                    console.error('Local storage score save error:', error);
+                    return false;
+                }
+            }
+        ];
+        
+        // Try each score sharing method
+        for (const method of scoreSharingMethods) {
+            if (method()) {
+                console.log('✅ Score shared successfully');
+                return;
+            }
+        }
+        
+        console.error('❌ Failed to share score through any method');
     }
 }
 
@@ -517,6 +638,5 @@ function startGame() {
 }
 
 function restartGame() {
-    game.reset();
-    game.start();
+    game.restartGame();
 }
