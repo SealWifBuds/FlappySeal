@@ -591,13 +591,65 @@ class FlappySealGame {
     }
 }
 
+// Telegram WebApp Integration
+function initTelegramWebApp() {
+    if (window.Telegram && window.Telegram.WebApp) {
+        const WebApp = window.Telegram.WebApp;
+        
+        // Configure WebApp
+        WebApp.expand();
+        WebApp.enableClosingConfirmation();
+        
+        // Set up main button
+        WebApp.MainButton.text = 'Start Game';
+        WebApp.MainButton.color = '#2ecc71';
+        WebApp.MainButton.textColor = '#ffffff';
+        
+        // Event listener for main button
+        WebApp.MainButton.onClick(() => {
+            console.log('Telegram WebApp Main Button Clicked');
+            startGame();
+            WebApp.MainButton.hide();
+        });
+        
+        // Show main button
+        WebApp.MainButton.show();
+        
+        // Handle app closing
+        WebApp.onEvent('mainButtonClicked', () => {
+            console.log('Main Button Clicked in Telegram WebApp');
+        });
+    }
+}
+
+// Modified startGame function
+function startGame() {
+    // Hide start screen
+    const startScreen = document.getElementById('startScreen');
+    if (startScreen) {
+        startScreen.style.display = 'none';
+    }
+    
+    // Create game instance
+    game = new FlappySealGame();
+    
+    // Start game loop
+    game.start();
+    
+    // If in Telegram WebApp, close main button
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.MainButton.hide();
+    }
+}
+
+// Initialize game when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM Loaded, Initializing Telegram WebApp');
+    initTelegramWebApp();
+});
+
 // Game instance
 let game;
-
-function startGame() {
-    game = new FlappySealGame();
-    game.start();
-}
 
 function restartGame() {
     game.reset();
