@@ -519,31 +519,74 @@ class FlappySealGame {
     shareScore() {
         console.log('Attempting to share score:', this.score);
         
-        if (window.TelegramGameProxy) {
-            try {
-                console.log('Sharing score via TelegramGameProxy');
-                TelegramGameProxy.shareScore(this.score);
-            } catch (error) {
-                console.error('Error sharing score via TelegramGameProxy:', error);
-            }
-        } else {
-            console.warn('TelegramGameProxy not available');
-            
-            // Fallback mechanism
-            if (window.Telegram && window.Telegram.WebApp) {
-                try {
-                    console.log('Sharing score via Telegram WebApp');
-                    window.Telegram.WebApp.sendData(JSON.stringify({
-                        type: 'game_score',
-                        score: this.score
-                    }));
-                } catch (error) {
-                    console.error('Error sharing score via Telegram WebApp:', error);
+        // Ensure score is a valid number
+        const scoreToShare = parseInt(this.score, 10);
+        
+        // Multiple score sharing mechanisms
+        const scoreSharingMethods = [
+            // Method 1: TelegramGameProxy
+            () => {
+                if (window.TelegramGameProxy) {
+                    try {
+                        console.log('Sharing score via TelegramGameProxy');
+                        TelegramGameProxy.shareScore(scoreToShare);
+                        return true;
+                    } catch (error) {
+                        console.error('TelegramGameProxy share error:', error);
+                        return false;
+                    }
                 }
-            } else {
-                console.error('No Telegram score sharing mechanism available');
+                return false;
+            },
+            
+            // Method 2: Telegram WebApp
+            () => {
+                if (window.Telegram && window.Telegram.WebApp) {
+                    try {
+                        console.log('Sharing score via Telegram WebApp');
+                        window.Telegram.WebApp.sendData(JSON.stringify({
+                            type: 'game_score',
+                            score: scoreToShare
+                        }));
+                        return true;
+                    } catch (error) {
+                        console.error('Telegram WebApp share error:', error);
+                        return false;
+                    }
+                }
+                return false;
+            },
+            
+            // Method 3: Fallback HTTP/API method (if implemented)
+            () => {
+                try {
+                    fetch('/submit-score', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            score: scoreToShare,
+                            username: window.Telegram?.WebApp?.initDataUnsafe?.user?.username || 'Anonymous'
+                        })
+                    });
+                    return true;
+                } catch (error) {
+                    console.error('Fallback score submission error:', error);
+                    return false;
+                }
+            }
+        ];
+        
+        // Try each score sharing method
+        for (const method of scoreSharingMethods) {
+            if (method()) {
+                console.log('Score shared successfully');
+                return;
             }
         }
+        
+        console.error('Failed to share score through any method');
     }
 }
 
