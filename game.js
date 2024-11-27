@@ -36,7 +36,12 @@ class SoundManager {
     }
 
     playJumpSound() {
-        this.createSound(880, 0.1, 0.2); // High-pitched jump sound
+        const frequencies = [330];
+        frequencies.forEach((freq, index) => {
+            setTimeout(() => {
+                this.createSound(880, 0.1, 0.2); // High-pitched jump sound
+            }, index * 100);
+        });
     }
 
     playGameOverSound() {
