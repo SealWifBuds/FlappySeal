@@ -20,6 +20,13 @@
             width: 320px;
             height: 480px;
         }
+        #muteButton {
+            position: absolute;
+            top: 10px;
+            right: 0%;
+            z-index: 2;
+            background: #1e3d5900;
+        }
         #gameCanvas {
             border: 2px solid #fff;
             border-radius: 10px;
@@ -124,6 +131,7 @@
             <button onclick="restartGame()">Play Again</button>
         </div>
         <div id="pauseOverlay">Tap or click to start!</div>
+        <button id="muteButton" onclick="toggleMute()">🔊</button>
     </div>
     <script src="background.js"></script>
     <script src="game.js"></script>
