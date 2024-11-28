@@ -3,7 +3,24 @@ class SoundManager {
         this.audioContext = null;
         this.isMuted = false;
         this.isMusicMuted = false;
+        
+        // Create and cache the background music
         this.backgroundMusic = new Audio('./assets/music.mp3');
+        this.backgroundMusic.loop = true;
+        this.backgroundMusic.volume = 1;
+        
+        // Preload music by loading it immediately
+        this.backgroundMusic.load();
+        
+        // Keep track of music state
+        this.musicLoaded = false;
+        this.backgroundMusic.addEventListener('canplaythrough', () => {
+            this.musicLoaded = true;
+            // If not muted, start playing as soon as loaded
+            if (!this.isMusicMuted) {
+                this.backgroundMusic.play().catch(error => console.warn('Music autoplay prevented:', error));
+            }
+        });
         
         // Safely initialize AudioContext
         try {
@@ -56,11 +73,11 @@ class SoundManager {
     }
 
     playMusic() {
-        if (!this.isMusicMuted) {
+        if (!this.isMusicMuted && this.musicLoaded && this.gameActive) {
             if (this.backgroundMusic.paused) {
                 this.backgroundMusic = new Audio('./assets/music.mp3');
                 this.backgroundMusic.volume = 1;
-                this.backgroundMusic.play();
+                this.backgroundMusic.play().catch(error => console.warn('Music play error:', error));
             } else {
                 this.backgroundMusic.pause();
             };
@@ -74,8 +91,8 @@ class SoundManager {
         this.isMusicMuted = !this.isMusicMuted;
         if (this.isMusicMuted) {
             this.backgroundMusic.pause();
-        } else {
-            if (this.gameActive) this.backgroundMusic.play();
+        } else if (this.musicLoaded) {
+            if (this.gameActive) this.backgroundMusic.play().catch(error => console.warn('Music toggle error:', error));;
         }
         return this.isMusicMuted;
     }
@@ -96,24 +113,32 @@ class FlappySealGame {
         this.startScreen = document.getElementById('startScreen');
         this.finalScoreElement = document.getElementById('finalScore');
         this.pauseOverlay = document.getElementById('pauseOverlay');
+        this.gameContainer = document.getElementById('gameContainer');
+
+        // Time-based update variables
+        this.lastTime = 0;
+        this.deltaTime = 0;
+        this.targetFPS = 60;
+        this.timeStep = 1000 / this.targetFPS;
 
         // Game settings
-        this.gravity = 0.2;   // Increased by 15% from 0.48
-        this.jumpForce = -6;   // Increased by 20% from -7.5
-        this.rocketGap = 180;  // Slightly wider gap for faster gameplay
+        this.baseSpeed = 60; // Pixels per second (increased from 60 to compensate for time-based)
+        this.gravity = 700; // Pixels per second squared
+        this.jumpForce = -350; // Pixels per second
+        this.rocketGap = 180;
         this.rocketWidth = 50;
         this.sealSize = 50;
-        this.gameSpeed = 1.5;  // Increased from 2.2 to 3.0
+        this.gameSpeed = 2.2;
         
         // Hitbox adjustment
         this.sealHitboxScale = {
-            width: 0.75,  // Slightly more forgiving hitbox
+            width: 0.75,
             height: 0.75
         };
 
         // Background animation settings
         this.nebulae = [];
-        this.numNebulae = 8; // Increased number of nebulae
+        this.numNebulae = 8;
         this.nebulaOffset = 0;
 
         // Particle systems
@@ -121,25 +146,47 @@ class FlappySealGame {
         this.ripples = [];
         this.scorePopups = [];
         this.comets = [];
-        this.flames = []; // Add flames array
+        this.flames = []; 
+        this.rocketFlames = []; 
+        this.rocketStreams = []; 
+        this.isShootingFire = false; 
         this.maxBubbles = 20;
         this.maxRipples = 3;
-        this.maxComets = 5;  // Maximum number of comets on screen
-        this.maxFlames = 8; // Increased to create continuous line
-        this.flameWidth = 100; // Width of each flame
-        this.flameHeight = 60; // Height of the flames
+        this.maxComets = 5;
+        this.maxFlames = 8;
+        this.flameWidth = 100;
+        this.flameHeight = 60;
+        this.fireShootTimer = 0;
+        this.fireShootDuration = 0.5; // Changed to 0.5 seconds instead of frames
 
         // Load assets
         this.loadAssets();
 
         // Event listeners
-        this.canvas.addEventListener('click', () => this.jump());
-        this.canvas.addEventListener('touchstart', (e) => {
+        this.gameContainer.addEventListener('click', (e) => {
+            // Don't trigger jump if clicking on buttons
+            if (e.target.tagName === 'BUTTON') return;
+            
+            // Prevent click from propagating to other elements
             e.preventDefault();
+            e.stopPropagation();
             this.jump();
         });
+        
+        this.gameContainer.addEventListener('touchstart', (e) => {
+            // Don't trigger jump if touching buttons
+            if (e.target.tagName === 'BUTTON') return;
+            
+            e.preventDefault();
+            e.stopPropagation();
+            this.jump();
+        });
+        
         document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') this.jump();
+            if (e.code === 'Space') {
+                e.preventDefault();
+                this.jump();
+            }
         });
 
         // Initialize game state
@@ -217,8 +264,11 @@ class FlappySealGame {
         this.ripples = [];
         this.scorePopups = [];
         this.comets = [];
-        this.flames = []; // Reset flames array
-
+        this.flames = []; 
+        this.rocketFlames = []; 
+        this.rocketStreams = []; 
+        this.isShootingFire = false; 
+        this.fireShootTimer = 0;
         // Initialize flames ahead of visible area
         this.initializeFlames();
 
@@ -251,26 +301,44 @@ class FlappySealGame {
         }
     }
 
-    start() {
-        this.gameActive = true;
-        this.isPaused = true;
-        this.startScreen.style.display = 'none';
-        this.pauseOverlay.style.display = 'block';
-        this.gameLoop();     
+    createRocketFlame(x, y) {
+        const numParticles = 5;
+        for (let i = 0; i < numParticles; i++) {
+            const speed = Math.random() * 180 + 300; // 300-480 pixels per second
+            const size = Math.random() * 10 + 5;
+            const lifetime = Math.random() * 0.33 + 0.17; // 0.17-0.5 seconds
+            
+            this.rocketFlames.push({
+                x: x,
+                y: y,
+                vx: -speed,
+                vy: (Math.random() - 0.5) * 120, // ±60 pixels per second vertical spread
+                size: size,
+                lifetime: lifetime,
+                maxLifetime: lifetime,
+                color: `hsl(${Math.random() * 30}, 100%, 50%)`
+            });
+        }
     }
 
-    jump() {
-        if (this.isPaused) {
-            this.isPaused = false;
-            this.soundManager.playMusic(); 
-            this.pauseOverlay.style.display = 'none';
-            this.seal.velocity = this.jumpForce;
-            this.createRipple();
-            this.soundManager.playJumpSound();
-        } else if (this.gameActive) {
-            this.seal.velocity = this.jumpForce;
-            this.createRipple();
-            this.soundManager.playJumpSound();
+    createRocketStream(x, y, direction) {
+        const numParticles = 5;
+        for (let i = 0; i < numParticles; i++) {
+            const speed = Math.random() * 180; // 0-180 pixels per second
+            const size = Math.random() * 12 + 8;
+            const lifetime = Math.random() * 0.17 + 0.17; // 0.17-0.34 seconds
+            const spread = Math.random() * 20 - 10;
+            
+            this.rocketStreams.push({
+                x: x + spread,
+                y: y,
+                vx: -this.baseSpeed * this.gameSpeed,
+                vy: speed * direction,
+                size: size,
+                lifetime: lifetime,
+                maxLifetime: lifetime,
+                color: `hsl(${Math.random() * 40}, 100%, 50%)`
+            });
         }
     }
 
@@ -281,7 +349,7 @@ class FlappySealGame {
             x: Math.random() * this.canvas.width,
             y: this.canvas.height + 10,
             size: Math.random() * 4 + 2,
-            speed: Math.random() * 2 + 1,
+            speed: Math.random() * 30 + 15, // Reduced from 120+60 to 30+15 pixels per second
             opacity: Math.random() * 0.5 + 0.1
         });
     }
@@ -292,23 +360,22 @@ class FlappySealGame {
         this.ripples.push({
             x: this.seal.x + this.sealSize/2,
             y: this.seal.y + this.sealSize/2,
-            size: 14,          // Reduced from 20 by 30%
-            opacity: 0.8,
-            maxSize: 70,       // Reduced from 100 by 30%
-            growthSpeed: 4     // Adjusted growth speed for smaller size
+            size: 7.5, // Increased by 50% from 5
+            growthSpeed: 60, // Increased by 50% from 40
+            opacity: 0.8
         });
     }
 
     createComet() {
         if (this.comets.length < this.maxComets) {
             this.comets.push({
-                x: this.canvas.width + 50,  // Start from right side
-                y: Math.random() * (this.canvas.height * 0.7),  // Start in top 70% of screen
-                size: Math.random() * 3 + 2,  // Size between 2-5 pixels
-                speed: Math.random() * 4 + 3,  // Speed between 3-7 pixels per frame
-                angle: Math.random() * 15 + 15,  // Angle between 15-30 degrees downward
-                tailLength: Math.random() * 50 + 30,  // Tail length between 30-80 pixels
-                opacity: Math.random() * 0.5 + 0.5  // Opacity between 0.5-1
+                x: this.canvas.width + 50,
+                y: Math.random() * (this.canvas.height * 0.7),
+                size: Math.random() * 3 + 2,
+                speed: Math.random() * 1.5 + 3, // Reduced by 90% (from 15+30 to 1.5+3)
+                angle: Math.random() * 15 + 15,
+                tailLength: Math.random() * 50 + 30,
+                opacity: Math.random() * 0.5 + 0.5
             });
         }
     }
@@ -355,103 +422,141 @@ class FlappySealGame {
 
     update() {
         this.updateBackground();
-
-        if (!this.gameActive || this.isPaused) {
-            // Gentle floating animation while paused
-            this.seal.y = this.canvas.height / 2 + Math.sin(Date.now() / 500) * 20;
-            this.seal.rotation = Math.sin(Date.now() / 1000) * 5;
-            return;
-        }
-
-        // Create bubbles randomly
-        if (Math.random() < 0.1) {
-            this.createBubble();
-        }
-
-        // Create comets randomly
-        if (Math.random() < 0.05) {
-            this.createComet();
-        }
-
-        // Check if we need more flames ahead
-        const rightmostFlame = Math.max(...this.flames.map(flame => flame.x), -Infinity);
-        if (rightmostFlame < this.canvas.width + this.flameWidth * 3) { // Maintain buffer of 3 flames
-            this.createFlame();
-        }
-
-        // Update bubbles
-        this.bubbles = this.bubbles.filter(bubble => {
-            bubble.y -= bubble.speed;
-            return bubble.y + bubble.size > 0;
-        });
-
-        // Update ripples
-        this.ripples = this.ripples.filter(ripple => {
-            ripple.size += ripple.growthSpeed;
-            ripple.opacity -= 0.04; // Faster fade out (0.8 / 0.04 = 20 frames ≈ 0.25 seconds at 60fps)
-            return ripple.opacity > 0;
-        });
-
-        // Update comets
-        this.updateComets();
-
-        // Update score popups
-        this.scorePopups = this.scorePopups.filter(popup => {
-            popup.y -= 1;
-            popup.opacity -= 0.02;
-            popup.scale -= 0.01;
-            return popup.opacity > 0;
-        });
-
-        // Update flames
-        this.flames = this.flames.filter(flame => {
-            flame.x -= flame.speed;
-            flame.frameCount += 1;
-            return flame.x + flame.width > -this.flameWidth; // Keep until fully off screen
-        });
-
-        // Update seal
-        this.seal.velocity += this.gravity;
-        this.seal.y += this.seal.velocity;
-        this.seal.rotation = Math.min(Math.max(this.seal.velocity * 2, -30), 30);
-
-        // Update rockets
-        for (let rocket of this.rockets) {
-            rocket.x -= this.gameSpeed;
-
-            // Check if rocket is passed
-            if (!rocket.passed && rocket.x + this.rocketWidth < this.seal.x) {
-                rocket.passed = true;
-                this.score++;
-                this.scoreElement.textContent = `Score: ${this.score}`;
-                this.createScorePopup();
+        if(this.gameActive) {
+            if (this.isPaused) {
+                // Gentle floating animation while paused
+                this.seal.y = this.canvas.height / 2 + Math.sin(Date.now() / 500) * 20;
+                this.seal.rotation = Math.sin(Date.now() / 1000) * 5;
+                return;
             }
-        }
 
-        // Add new rocket when needed
-        if (this.rockets[this.rockets.length - 1].x < this.canvas.width - 200) {
-            this.addRocket();
-        }
+            // Convert deltaTime from milliseconds to seconds for physics calculations
+            const dt = this.deltaTime / 1000;
 
-        // Remove off-screen rockets
-        this.rockets = this.rockets.filter(rocket => rocket.x + this.rocketWidth > 0);
+            // Update fire shoot timer
+            if (this.isShootingFire) {
+                this.fireShootTimer += dt;
+                if (this.fireShootTimer >= this.fireShootDuration) {
+                    this.isShootingFire = false;
+                    this.fireShootTimer = 0;
+                }
+            }
 
-        // Check collisions
-        if (this.checkCollision()) {
-            this.gameOver();
-            return;
-        }
+            // Create bubbles randomly (adjusted for time-based)
+            if (Math.random() < 0.5 * dt) { 
+                this.createBubble();
+            }
 
-        // Check boundaries
-        if (this.seal.y < 0 || this.seal.y + this.sealSize > this.canvas.height) {
-            this.gameOver();
-            return;
+            // Check if we need more flames ahead
+            const rightmostFlame = Math.max(...this.flames.map(flame => flame.x), -Infinity);
+            if (rightmostFlame < this.canvas.width + this.flameWidth * 3) {
+                this.createFlame();
+            }
+
+            // Update bubbles
+            this.bubbles = this.bubbles.filter(bubble => {
+                bubble.y -= bubble.speed * dt; 
+                return bubble.y + bubble.size > 0;
+            });
+
+            // Update ripples
+            this.ripples = this.ripples.filter(ripple => {
+                ripple.size += ripple.growthSpeed * dt;
+                ripple.opacity -= 0.8 * dt; // Reduced from 2.4 to 0.8 for longer duration
+                return ripple.opacity > 0;
+            });
+
+            // Update comets
+            this.updateComets();
+
+            // Update score popups
+            this.scorePopups = this.scorePopups.filter(popup => {
+                popup.y -= 60 * dt; // 60 pixels per second
+                popup.opacity -= 1.2 * dt;
+                popup.scale -= 0.6 * dt;
+                return popup.opacity > 0;
+            });
+
+            // Update flames
+            this.flames = this.flames.filter(flame => {
+                flame.x -= this.baseSpeed * this.gameSpeed * dt;
+                flame.frameCount += dt * 60; // Convert to time-based animation
+                return flame.x + flame.width > -this.flameWidth;
+            });
+
+            // Update rocket flames
+            this.rocketFlames = this.rocketFlames.filter(flame => {
+                flame.lifetime -= dt;
+                flame.x += flame.vx * dt;
+                flame.y += flame.vy * dt;
+                return flame.lifetime > 0;
+            });
+
+            // Update rocket streams
+            this.rocketStreams = this.rocketStreams.filter(stream => {
+                stream.lifetime -= dt;
+                stream.x += stream.vx * dt;
+                stream.y += stream.vy * dt;
+                return stream.lifetime > 0;
+            });
+
+            // Update seal physics
+            this.seal.velocity += this.gravity * dt;
+            this.seal.y += this.seal.velocity * dt;
+            this.seal.rotation = Math.min(Math.max(this.seal.velocity * 0.1, -30), 30);
+
+            // Update rockets
+            for (let rocket of this.rockets) {
+                rocket.x -= this.baseSpeed * this.gameSpeed * dt;
+
+                // Check if rocket is passed
+                if (!rocket.passed && rocket.x + this.rocketWidth < this.seal.x) {
+                    rocket.passed = true;
+                    this.score++;
+                    this.scoreElement.textContent = `Score: ${this.score}`;
+                    this.createScorePopup();
+                    this.isShootingFire = true;
+                    this.fireShootTimer = 0;
+                }
+
+                // Create fire streams for all rockets if enabled
+                if (this.isShootingFire && Math.random() < 0.4) {
+                    // Increase particle frequency during short duration
+                    const numBursts = 2; // Create multiple bursts per frame for more intense effect
+                    for (let i = 0; i < numBursts; i++) {
+                        // Top rocket shoots down
+                        this.createRocketStream(rocket.x + this.rocketWidth/2, rocket.gapTop + 25, 1);
+                        // Bottom rocket shoots up
+                        this.createRocketStream(rocket.x + this.rocketWidth/2, rocket.gapTop + this.rocketGap - 25, -1);
+                    }
+                }
+            }
+
+            // Add new rocket when needed
+            if (this.rockets[this.rockets.length - 1].x < this.canvas.width - 200) {
+                this.addRocket();
+            }
+
+            // Remove off-screen rockets
+            this.rockets = this.rockets.filter(rocket => rocket.x + this.rocketWidth > 0);
+
+            // Check collisions
+            if (this.checkCollision()) {
+                this.gameOver();
+                return;
+            }
+
+            // Check boundaries
+            if (this.seal.y < 0 || this.seal.y + this.sealSize > this.canvas.height) {
+                this.gameOver();
+                return;
+            }
         }
     }
 
     updateComets() {
         // Create comets randomly
-        if (Math.random() < 0.05) {  // 5% chance each frame
+        if (Math.random() < 0.02) {  // 5% chance each frame
             this.createComet();
         }
 
@@ -489,16 +594,6 @@ class FlappySealGame {
                 y: rocket.gapTop + this.rocketGap,
                 width: this.rocketWidth - 10,
                 height: this.canvas.height - (rocket.gapTop + this.rocketGap)
-            })) return true;
-        }
-
-        // Check flame collisions
-        for (let flame of this.flames) {
-            if (this.intersects(sealBox, {
-                x: flame.x + 5,  // Add small padding to hitbox
-                y: flame.y,
-                width: flame.width - 10,
-                height: flame.height
             })) return true;
         }
 
@@ -604,7 +699,7 @@ class FlappySealGame {
         );
         
         // Limit rotation angle and make it smoother
-        const rotationAngle = Math.min(Math.max(this.seal.velocity * 2, -30), 30);
+        const rotationAngle = Math.min(Math.max(this.seal.velocity * 0.1, -30), 30);
         this.ctx.rotate(rotationAngle * Math.PI / 180);
         
         this.ctx.drawImage(
@@ -684,6 +779,31 @@ class FlappySealGame {
             this.ctx.shadowBlur = 0;
         });
 
+        // Draw rocket flames
+        this.rocketFlames.forEach(flame => {
+            const alpha = flame.lifetime / flame.maxLifetime;
+            this.ctx.beginPath();
+            this.ctx.fillStyle = flame.color.replace(')', `, ${alpha})`).replace('hsl', 'hsla');
+            this.ctx.arc(flame.x, flame.y, flame.size * (1 + (1 - alpha) * 0.5), 0, Math.PI * 2);
+            this.ctx.fill();
+        });
+
+        // Draw rocket streams
+        this.rocketStreams.forEach(stream => {
+            const alpha = stream.lifetime / stream.maxLifetime;
+            this.ctx.beginPath();
+            this.ctx.fillStyle = stream.color.replace(')', `, ${alpha})`).replace('hsl', 'hsla');
+            // Draw elongated flame particle
+            this.ctx.ellipse(
+                stream.x, 
+                stream.y, 
+                stream.size * 0.5, // width
+                stream.size * (1 + (1 - alpha)), // height - gets longer as it fades
+                0, 0, Math.PI * 2
+            );
+            this.ctx.fill();
+        });
+
         // Draw score popups
         this.scorePopups.forEach(popup => {
             this.ctx.save();
@@ -700,13 +820,35 @@ class FlappySealGame {
         return color.replace('hsl', 'hsla').replace(')', `, ${opacity})`);
     }
 
-    gameLoop() {
+    start() {
+        this.gameActive = true;
+        this.isPaused = true; // Start in paused state
+        this.startScreen.style.display = 'none';
+        this.pauseOverlay.style.display = 'block';
+        
+        // Start the game loop if it's not already running
+        if (!this.isLoopRunning) {
+            this.isLoopRunning = true;
+            this.lastTime = performance.now();
+            requestAnimationFrame((time) => this.gameLoop(time));
+        }
+    }
+
+    gameLoop(currentTime) {
+        if (!this.isLoopRunning) return;
+
+        // Calculate delta time
+        this.deltaTime = currentTime - this.lastTime;
+        this.lastTime = currentTime;
+
+        // Update game state
         this.update();
+        
+        // Draw game
         this.draw();
 
-        if (this.gameActive) {
-            requestAnimationFrame(() => this.gameLoop());
-        }
+        // Continue the game loop
+        requestAnimationFrame((time) => this.gameLoop(time));
     }
 
     gameOver() {
@@ -716,12 +858,32 @@ class FlappySealGame {
         this.gameOverScreen.style.display = 'block';
         this.soundManager.playMusic(); 
     }
+
+    jump() {
+        if (!this.gameActive) return;
+        
+        if (this.isPaused) {
+            this.isPaused = false;
+            this.soundManager.playMusic(); 
+            this.pauseOverlay.style.display = 'none';
+        }
+        
+        this.seal.velocity = this.jumpForce;
+        this.createRipple();
+        this.soundManager.playJumpSound();
+    }
 }
 
 // Game instance
 let game;
 
+// Initialize game when the window loads
+window.addEventListener('load', () => {
+    game = new FlappySealGame();
+});
+
 function toggleMute() {
+    if (!game) return;
     const muteButton = document.getElementById('muteButton');
     const isMuted = game.soundManager.toggleMute();
     
@@ -730,6 +892,7 @@ function toggleMute() {
 }
 
 function toggleMusic() {
+    if (!game) return;
     const playButton = document.getElementById('playButton');
     const isMuted = game.soundManager.toggleMusic();
     
@@ -738,11 +901,16 @@ function toggleMusic() {
 }
 
 function startGame() {
-    game = new FlappySealGame();
+    if (!game) {
+        game = new FlappySealGame();
+    }
     game.start();
 }
 
 function restartGame() {
+    if (!game) {
+        game = new FlappySealGame();
+    }
     game.reset();
     game.start();
 }
