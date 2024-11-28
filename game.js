@@ -3,7 +3,24 @@ class SoundManager {
         this.audioContext = null;
         this.isMuted = false;
         this.isMusicMuted = false;
+        
+        // Create and cache the background music
         this.backgroundMusic = new Audio('./assets/music.mp3');
+        this.backgroundMusic.loop = true;
+        this.backgroundMusic.volume = 1;
+        
+        // Preload music by loading it immediately
+        this.backgroundMusic.load();
+        
+        // Keep track of music state
+        this.musicLoaded = false;
+        this.backgroundMusic.addEventListener('canplaythrough', () => {
+            this.musicLoaded = true;
+            // If not muted, start playing as soon as loaded
+            if (!this.isMusicMuted) {
+                this.backgroundMusic.play().catch(error => console.warn('Music autoplay prevented:', error));
+            }
+        });
         
         // Safely initialize AudioContext
         try {
@@ -56,11 +73,11 @@ class SoundManager {
     }
 
     playMusic() {
-        if (!this.isMusicMuted) {
+        if (!this.isMusicMuted && this.musicLoaded) {
             if (this.backgroundMusic.paused) {
                 this.backgroundMusic = new Audio('./assets/music.mp3');
                 this.backgroundMusic.volume = 1;
-                this.backgroundMusic.play();
+                this.backgroundMusic.play().catch(error => console.warn('Music play error:', error));
             } else {
                 this.backgroundMusic.pause();
             };
@@ -74,8 +91,8 @@ class SoundManager {
         this.isMusicMuted = !this.isMusicMuted;
         if (this.isMusicMuted) {
             this.backgroundMusic.pause();
-        } else {
-            if (this.gameActive) this.backgroundMusic.play();
+        } else if (this.musicLoaded) {
+            if (this.gameActive) this.backgroundMusic.play().catch(error => console.warn('Music toggle error:', error));;
         }
         return this.isMusicMuted;
     }
