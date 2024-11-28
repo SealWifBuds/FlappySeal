@@ -354,7 +354,7 @@ class FlappySealGame {
                 x: this.canvas.width + 50,  // Start from right side
                 y: Math.random() * (this.canvas.height * 0.7),  // Start in top 70% of screen
                 size: Math.random() * 3 + 2,  // Size between 2-5 pixels
-                speed: Math.random() * 4 + 3,  // Speed between 3-7 pixels per frame
+                speed: Math.random() * 1 + 2,  // Speed between 3-7 pixels per frame
                 angle: Math.random() * 15 + 15,  // Angle between 15-30 degrees downward
                 tailLength: Math.random() * 50 + 30,  // Tail length between 30-80 pixels
                 opacity: Math.random() * 0.5 + 0.5  // Opacity between 0.5-1
@@ -424,11 +424,6 @@ class FlappySealGame {
         // Create bubbles randomly
         if (Math.random() < 0.1) {
             this.createBubble();
-        }
-
-        // Create comets randomly
-        if (Math.random() < 0.05) {
-            this.createComet();
         }
 
         // Check if we need more flames ahead
@@ -539,7 +534,7 @@ class FlappySealGame {
 
     updateComets() {
         // Create comets randomly
-        if (Math.random() < 0.05) {  // 5% chance each frame
+        if (Math.random() < 0.02) {  // 5% chance each frame
             this.createComet();
         }
 
