@@ -2,6 +2,8 @@ class SoundManager {
     constructor() {
         this.audioContext = null;
         this.isMuted = false;
+        this.isMusicMuted = false;
+        this.backgroundMusic = new Audio('./assets/music.mp3');
         
         // Safely initialize AudioContext
         try {
@@ -51,6 +53,31 @@ class SoundManager {
                 this.createSound(freq, 0.3, 0.4, 'triangle');
             }, index * 100);
         });
+    }
+
+    playMusic() {
+        if (!this.isMusicMuted) {
+            if (this.backgroundMusic.paused) {
+                this.backgroundMusic = new Audio('./assets/music.mp3');
+                this.backgroundMusic.volume = 0.3;
+                this.backgroundMusic.play();
+            } else {
+                this.backgroundMusic.pause();
+            };
+        }else {
+            this.backgroundMusic = new Audio('./assets/music.mp3');
+            this.backgroundMusic.pause();
+        }
+    }
+
+    toggleMusic() {
+        this.isMusicMuted = !this.isMusicMuted;
+        if (this.isMusicMuted) {
+            this.backgroundMusic.pause();
+        } else {
+            this.backgroundMusic.play();
+        }
+        return this.isMusicMuted;
     }
 
     toggleMute() {
@@ -204,6 +231,7 @@ class FlappySealGame {
         this.startScreen.style.display = 'none';
         this.pauseOverlay.style.display = 'block';
         this.gameLoop();
+        this.soundManager.playMusic();        
     }
 
     jump() {
@@ -568,10 +596,10 @@ class FlappySealGame {
 
     gameOver() {
         this.soundManager.playGameOverSound();
-
         this.gameActive = false;
         this.finalScoreElement.textContent = this.score;
         this.gameOverScreen.style.display = 'block';
+        this.soundManager.playMusic(); 
     }
 }
 
@@ -584,6 +612,14 @@ function toggleMute() {
     
     // Update button icon
     muteButton.textContent = isMuted ? '🔇' : '🔊';
+}
+
+function toggleMusic() {
+    const playButton = document.getElementById('playButton');
+    const isMuted = game.soundManager.toggleMusic();
+    
+    // Update button icon
+    playButton.textContent = isMuted ? '⏸️' : '▶️';
 }
 
 function startGame() {
