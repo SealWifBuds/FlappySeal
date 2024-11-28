@@ -121,9 +121,13 @@ class FlappySealGame {
         this.ripples = [];
         this.scorePopups = [];
         this.comets = [];
+        this.flames = []; // Add flames array
         this.maxBubbles = 20;
         this.maxRipples = 3;
         this.maxComets = 5;  // Maximum number of comets on screen
+        this.maxFlames = 8; // Increased to create continuous line
+        this.flameWidth = 100; // Width of each flame
+        this.flameHeight = 60; // Height of the flames
 
         // Load assets
         this.loadAssets();
@@ -213,6 +217,10 @@ class FlappySealGame {
         this.ripples = [];
         this.scorePopups = [];
         this.comets = [];
+        this.flames = []; // Reset flames array
+
+        // Initialize flames ahead of visible area
+        this.initializeFlames();
 
         // Add initial rocket
         this.addRocket();
@@ -223,6 +231,24 @@ class FlappySealGame {
         // Hide game over screen and pause overlay
         this.gameOverScreen.style.display = 'none';
         this.pauseOverlay.style.display = 'none';
+    }
+
+    initializeFlames() {
+        // Calculate how many flames we need to cover the screen plus buffer
+        const totalWidth = this.canvas.width + this.flameWidth * 4; // Extra buffer
+        const numFlames = Math.ceil(totalWidth / (this.flameWidth * 0.7)) + 1; // Overlap flames by 30%
+
+        // Create initial flames
+        for (let i = 0; i < numFlames; i++) {
+            this.flames.push({
+                x: this.canvas.width + (i * this.flameWidth * 0.7), // Start from right edge with overlap
+                y: this.canvas.height,
+                width: this.flameWidth,
+                height: this.flameHeight,
+                frameCount: Math.random() * 100, // Randomize initial frame for varied animation
+                speed: this.gameSpeed
+            });
+        }
     }
 
     start() {
@@ -287,6 +313,24 @@ class FlappySealGame {
         }
     }
 
+    createFlame() {
+        // Calculate the rightmost flame's position
+        let rightmostX = -Infinity;
+        this.flames.forEach(flame => {
+            rightmostX = Math.max(rightmostX, flame.x);
+        });
+
+        // Create new flame next to the rightmost one, with overlap
+        this.flames.push({
+            x: rightmostX + this.flameWidth * 0.7, // Overlap flames by 30%
+            y: this.canvas.height,
+            width: this.flameWidth,
+            height: this.flameHeight,
+            frameCount: Math.random() * 100,
+            speed: this.gameSpeed
+        });
+    }
+
     createScorePopup() {
         this.scorePopups.push({
             x: this.canvas.width / 2,
@@ -325,8 +369,14 @@ class FlappySealGame {
         }
 
         // Create comets randomly
-        if (Math.random() < 0.05) {  // 5% chance each frame
+        if (Math.random() < 0.05) {
             this.createComet();
+        }
+
+        // Check if we need more flames ahead
+        const rightmostFlame = Math.max(...this.flames.map(flame => flame.x), -Infinity);
+        if (rightmostFlame < this.canvas.width + this.flameWidth * 3) { // Maintain buffer of 3 flames
+            this.createFlame();
         }
 
         // Update bubbles
@@ -351,6 +401,13 @@ class FlappySealGame {
             popup.opacity -= 0.02;
             popup.scale -= 0.01;
             return popup.opacity > 0;
+        });
+
+        // Update flames
+        this.flames = this.flames.filter(flame => {
+            flame.x -= flame.speed;
+            flame.frameCount += 1;
+            return flame.x + flame.width > -this.flameWidth; // Keep until fully off screen
         });
 
         // Update seal
@@ -418,21 +475,30 @@ class FlappySealGame {
             height: this.sealSize * this.sealHitboxScale.height
         };
 
+        // Check rocket collisions
         for (let rocket of this.rockets) {
-            // Check collision with top rocket
             if (this.intersects(sealBox, {
-                x: rocket.x + 5,  // Add 5px padding to rocket hitbox
+                x: rocket.x + 5,
                 y: 0,
-                width: this.rocketWidth - 10,  // Reduce hitbox width by 10px
+                width: this.rocketWidth - 10,
                 height: rocket.gapTop
             })) return true;
 
-            // Check collision with bottom rocket
             if (this.intersects(sealBox, {
-                x: rocket.x + 5,  // Add 5px padding to rocket hitbox
+                x: rocket.x + 5,
                 y: rocket.gapTop + this.rocketGap,
-                width: this.rocketWidth - 10,  // Reduce hitbox width by 10px
+                width: this.rocketWidth - 10,
                 height: this.canvas.height - (rocket.gapTop + this.rocketGap)
+            })) return true;
+        }
+
+        // Check flame collisions
+        for (let flame of this.flames) {
+            if (this.intersects(sealBox, {
+                x: flame.x + 5,  // Add small padding to hitbox
+                y: flame.y,
+                width: flame.width - 10,
+                height: flame.height
             })) return true;
         }
 
@@ -452,11 +518,11 @@ class FlappySealGame {
 
         // Draw space background gradient
         const gradient = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-        gradient.addColorStop(0, '#0a0a2a');    // Dark blue at top
-        gradient.addColorStop(0.3, '#1a1a4a');  // Medium blue
-        gradient.addColorStop(0.6, '#2a2a6a');  // Lighter blue
-        gradient.addColorStop(0.8, '#1a1a4a');  // Back to medium blue
-        gradient.addColorStop(1, '#0a0a2a');    // Dark blue at bottom
+        gradient.addColorStop(0, '#0a0a2a');
+        gradient.addColorStop(0.3, '#1a1a4a');
+        gradient.addColorStop(0.6, '#2a2a6a');
+        gradient.addColorStop(0.8, '#1a1a4a');
+        gradient.addColorStop(1, '#0a0a2a');
         this.ctx.fillStyle = gradient;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -568,6 +634,55 @@ class FlappySealGame {
                 this.canvas.height - (rocket.gapTop + this.rocketGap)
             );
         }
+
+        // Draw flames
+        this.flames.forEach(flame => {
+            // Create flame gradient
+            const flameGradient = this.ctx.createLinearGradient(
+                flame.x, flame.y,
+                flame.x, flame.y - flame.height
+            );
+            
+            // Animate flame colors
+            const offset = Math.sin(flame.frameCount * 0.1) * 0.1;
+            flameGradient.addColorStop(0, '#FF4500');  // Red-orange base
+            flameGradient.addColorStop(0.4 + offset, '#FFA500');  // Orange middle
+            flameGradient.addColorStop(1, '#FFD700');  // Yellow top
+            
+            this.ctx.fillStyle = flameGradient;
+            
+            // Draw multiple flame tips for each flame section
+            const numTips = 3;
+            this.ctx.beginPath();
+            this.ctx.moveTo(flame.x, flame.y);
+            
+            // Create base points
+            for (let i = 0; i <= numTips; i++) {
+                const x = flame.x + (flame.width * i) / numTips;
+                const waveOffset = Math.sin((flame.frameCount + i * 30) * 0.3) * 8;
+                const heightVariation = Math.sin((flame.frameCount + i * 20) * 0.2) * 10;
+                
+                if (i === 0) {
+                    this.ctx.moveTo(x, flame.y);
+                } else {
+                    // Create flame tips
+                    const midX = x - flame.width / (numTips * 2);
+                    const tipHeight = flame.height + heightVariation;
+                    this.ctx.quadraticCurveTo(
+                        midX, flame.y - tipHeight + waveOffset,
+                        x, flame.y
+                    );
+                }
+            }
+            
+            this.ctx.closePath();
+            
+            // Add glow effect
+            this.ctx.shadowColor = '#FF4500';
+            this.ctx.shadowBlur = 20;
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+        });
 
         // Draw score popups
         this.scorePopups.forEach(popup => {
