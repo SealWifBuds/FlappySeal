@@ -27,6 +27,13 @@
             z-index: 2;
             background: #1e3d5900;
         }
+        #playButton {
+            position: absolute;
+            top: 10px;
+            right: 10%;
+            z-index: 2;
+            background: #1e3d5900;
+        }
         #gameCanvas {
             border: 2px solid #fff;
             border-radius: 10px;
@@ -121,7 +128,7 @@
         <canvas id="gameCanvas" width="320" height="480"></canvas>
         <div id="score">Score: 0</div>
         <div id="startScreen">
-            <h2>Flappy Seal Beta 1.0.1</h2>
+            <h2>Flappy Seal Beta 1.0.2</h2>
             <p>Tap or click to play!</p>
             <button onclick="startGame()">Start Game</button>
         </div>
@@ -132,6 +139,7 @@
         </div>
         <div id="pauseOverlay">Tap or click to start!</div>
         <button id="muteButton" onclick="toggleMute()">🔊</button>
+        <button id="playButton" onclick="toggleMusic()">▶️</button>
     </div>
     <script src="background.js"></script>
     <script src="game.js"></script>
