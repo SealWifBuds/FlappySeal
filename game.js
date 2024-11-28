@@ -121,13 +121,18 @@ class FlappySealGame {
         this.ripples = [];
         this.scorePopups = [];
         this.comets = [];
-        this.flames = []; // Add flames array
+        this.flames = []; 
+        this.rocketFlames = []; 
+        this.rocketStreams = []; 
+        this.isShootingFire = false; 
         this.maxBubbles = 20;
         this.maxRipples = 3;
         this.maxComets = 5;  // Maximum number of comets on screen
         this.maxFlames = 8; // Increased to create continuous line
         this.flameWidth = 100; // Width of each flame
         this.flameHeight = 60; // Height of the flames
+        this.fireShootTimer = 0;
+        this.fireShootDuration = 30; // 30 frames = 0.5 seconds at 60fps
 
         // Load assets
         this.loadAssets();
@@ -217,8 +222,11 @@ class FlappySealGame {
         this.ripples = [];
         this.scorePopups = [];
         this.comets = [];
-        this.flames = []; // Reset flames array
-
+        this.flames = []; 
+        this.rocketFlames = []; 
+        this.rocketStreams = []; 
+        this.isShootingFire = false; 
+        this.fireShootTimer = 0;
         // Initialize flames ahead of visible area
         this.initializeFlames();
 
@@ -247,6 +255,47 @@ class FlappySealGame {
                 height: this.flameHeight,
                 frameCount: Math.random() * 100, // Randomize initial frame for varied animation
                 speed: this.gameSpeed
+            });
+        }
+    }
+
+    createRocketFlame(x, y) {
+        const numParticles = 5;
+        for (let i = 0; i < numParticles; i++) {
+            const speed = Math.random() * 3 + 5;
+            const size = Math.random() * 10 + 5;
+            const lifetime = Math.random() * 20 + 10;
+            
+            this.rocketFlames.push({
+                x: x,
+                y: y,
+                vx: -speed, // Always shoot left
+                vy: (Math.random() - 0.5) * 2, // Slight vertical spread
+                size: size,
+                lifetime: lifetime,
+                maxLifetime: lifetime,
+                color: `hsl(${Math.random() * 30}, 100%, 50%)`
+            });
+        }
+    }
+
+    createRocketStream(x, y, direction) {
+        const numParticles = 5; // More particles for wider stream
+        for (let i = 0; i < numParticles; i++) {
+            const speed = Math.random() * 3; // Slightly faster for shorter stream
+            const size = Math.random() * 12 + 8; // Bigger particles (8-20px instead of 4-12px)
+            const lifetime = Math.random() * 10 + 10; // Shorter lifetime (10-20 frames instead of 15-35)
+            const spread = Math.random() * 20 - 10; // Horizontal spread of ±10px
+            
+            this.rocketStreams.push({
+                x: x + spread,  // Add spread to x position
+                y: y,
+                vx: -this.gameSpeed,
+                vy: speed * direction,
+                size: size,
+                lifetime: lifetime,
+                maxLifetime: lifetime,
+                color: `hsl(${Math.random() * 40}, 100%, 50%)` // Blue colors (200-240 hue)
             });
         }
     }
@@ -363,6 +412,15 @@ class FlappySealGame {
             return;
         }
 
+        // Update fire shoot timer
+        if (this.isShootingFire) {
+            this.fireShootTimer++;
+            if (this.fireShootTimer >= this.fireShootDuration) {
+                this.isShootingFire = false;
+                this.fireShootTimer = 0;
+            }
+        }
+
         // Create bubbles randomly
         if (Math.random() < 0.1) {
             this.createBubble();
@@ -410,6 +468,22 @@ class FlappySealGame {
             return flame.x + flame.width > -this.flameWidth; // Keep until fully off screen
         });
 
+        // Update rocket flames
+        this.rocketFlames = this.rocketFlames.filter(flame => {
+            flame.lifetime--;
+            flame.x += flame.vx;
+            flame.y += flame.vy;
+            return flame.lifetime > 0;
+        });
+
+        // Update rocket streams
+        this.rocketStreams = this.rocketStreams.filter(stream => {
+            stream.lifetime--;
+            stream.x += stream.vx;
+            stream.y += stream.vy;
+            return stream.lifetime > 0;
+        });
+
         // Update seal
         this.seal.velocity += this.gravity;
         this.seal.y += this.seal.velocity;
@@ -425,6 +499,20 @@ class FlappySealGame {
                 this.score++;
                 this.scoreElement.textContent = `Score: ${this.score}`;
                 this.createScorePopup();
+                this.isShootingFire = true;
+                this.fireShootTimer = 0;
+            }
+
+            // Create fire streams for all rockets if enabled
+            if (this.isShootingFire && Math.random() < 0.4) {
+                // Increase particle frequency during short duration
+                const numBursts = 2; // Create multiple bursts per frame for more intense effect
+                for (let i = 0; i < numBursts; i++) {
+                    // Top rocket shoots down
+                    this.createRocketStream(rocket.x + this.rocketWidth/2, rocket.gapTop + 25, 1);
+                    // Bottom rocket shoots up
+                    this.createRocketStream(rocket.x + this.rocketWidth/2, rocket.gapTop + this.rocketGap - 25, -1);
+                }
             }
         }
 
@@ -489,16 +577,6 @@ class FlappySealGame {
                 y: rocket.gapTop + this.rocketGap,
                 width: this.rocketWidth - 10,
                 height: this.canvas.height - (rocket.gapTop + this.rocketGap)
-            })) return true;
-        }
-
-        // Check flame collisions
-        for (let flame of this.flames) {
-            if (this.intersects(sealBox, {
-                x: flame.x + 5,  // Add small padding to hitbox
-                y: flame.y,
-                width: flame.width - 10,
-                height: flame.height
             })) return true;
         }
 
@@ -682,6 +760,31 @@ class FlappySealGame {
             this.ctx.shadowBlur = 20;
             this.ctx.fill();
             this.ctx.shadowBlur = 0;
+        });
+
+        // Draw rocket flames
+        this.rocketFlames.forEach(flame => {
+            const alpha = flame.lifetime / flame.maxLifetime;
+            this.ctx.beginPath();
+            this.ctx.fillStyle = flame.color.replace(')', `, ${alpha})`).replace('hsl', 'hsla');
+            this.ctx.arc(flame.x, flame.y, flame.size * (1 + (1 - alpha) * 0.5), 0, Math.PI * 2);
+            this.ctx.fill();
+        });
+
+        // Draw rocket streams
+        this.rocketStreams.forEach(stream => {
+            const alpha = stream.lifetime / stream.maxLifetime;
+            this.ctx.beginPath();
+            this.ctx.fillStyle = stream.color.replace(')', `, ${alpha})`).replace('hsl', 'hsla');
+            // Draw elongated flame particle
+            this.ctx.ellipse(
+                stream.x, 
+                stream.y, 
+                stream.size * 0.5, // width
+                stream.size * (1 + (1 - alpha)), // height - gets longer as it fades
+                0, 0, Math.PI * 2
+            );
+            this.ctx.fill();
         });
 
         // Draw score popups
