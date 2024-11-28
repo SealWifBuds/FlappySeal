@@ -106,6 +106,7 @@ class SoundManager {
 class FlappySealGame {
     constructor() {
         // Get DOM elements
+        this.gameActive = false;
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         this.scoreElement = document.getElementById('score');
