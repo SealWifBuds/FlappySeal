@@ -13,7 +13,7 @@ class SoundManager {
         }
     }
 
-    createSound(frequency, duration = 0.1, volume = 0.3, type = 'sine') {
+    createSound(frequency, duration = 0.1, volume = 0.1, type = 'sine') {
         if (this.isMuted || !this.audioContext) return;
 
         try {
@@ -59,7 +59,7 @@ class SoundManager {
         if (!this.isMusicMuted) {
             if (this.backgroundMusic.paused) {
                 this.backgroundMusic = new Audio('./assets/music.mp3');
-                this.backgroundMusic.volume = 0.3;
+                this.backgroundMusic.volume = 1;
                 this.backgroundMusic.play();
             } else {
                 this.backgroundMusic.pause();
