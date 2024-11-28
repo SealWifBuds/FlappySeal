@@ -230,13 +230,13 @@ class FlappySealGame {
         this.isPaused = true;
         this.startScreen.style.display = 'none';
         this.pauseOverlay.style.display = 'block';
-        this.gameLoop();
-        this.soundManager.playMusic();        
+        this.gameLoop();     
     }
 
     jump() {
         if (this.isPaused) {
             this.isPaused = false;
+            this.soundManager.playMusic();   
             this.pauseOverlay.style.display = 'none';
             this.seal.velocity = this.jumpForce;
             this.createRipple();
