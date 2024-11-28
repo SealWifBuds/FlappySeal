@@ -75,7 +75,7 @@ class SoundManager {
         if (this.isMusicMuted) {
             this.backgroundMusic.pause();
         } else {
-            this.backgroundMusic.play();
+            if (this.gameActive) this.backgroundMusic.play();
         }
         return this.isMusicMuted;
     }
@@ -236,7 +236,7 @@ class FlappySealGame {
     jump() {
         if (this.isPaused) {
             this.isPaused = false;
-            this.soundManager.playMusic();   
+            this.soundManager.playMusic(); 
             this.pauseOverlay.style.display = 'none';
             this.seal.velocity = this.jumpForce;
             this.createRipple();
