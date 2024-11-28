@@ -302,7 +302,7 @@ class FlappySealGame {
                 size: size,
                 lifetime: lifetime,
                 maxLifetime: lifetime,
-                color: `hsl(${Math.random() * 40}, 100%, 50%)` // Blue colors (200-240 hue)
+                color: `hsl(${Math.random() * 140}, 100%, 50%)` // Blue colors (200-240 hue)
             });
         }
     }
