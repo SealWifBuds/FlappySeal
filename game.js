@@ -105,12 +105,12 @@ class FlappySealGame {
 
         // Game settings
         this.baseSpeed = 60; // Reduced from 90
-        this.gravity = 600; // Adjusted for better fall speed
-        this.jumpForce = -300; // Adjusted for better jump height
+        this.gravity = 700; // Adjusted for better fall speed
+        this.jumpForce = -350; // Adjusted for better jump height
         this.rocketGap = 180;
         this.rocketWidth = 50;
         this.sealSize = 50;
-        this.gameSpeed = 2.5;
+        this.gameSpeed = 2;
         
         // Hitbox adjustment
         this.sealHitboxScale = {
